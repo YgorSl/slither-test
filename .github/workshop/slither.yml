@@ -1,0 +1,90 @@
+name: Slither Analysis
+
+on:
+  pull_request:
+#    types: [ edited, opened, synchronize, ready_for_review ]
+    paths:
+      - "**.sol"
+    branches:
+      - main
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Slither - Reporting
+        uses: crytic/slither-action@v0.4.0
+        id: slither_docu
+        env:
+          NODE_VERSION: '18'
+          SOLC_VERSION: '0.8.11'
+          TARGET: 'contracts/'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          solc-version: ${{ env.SOLC_VERSION }}
+          slither-args: --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
+          fail-on: none
+          target: ${{ env.TARGET }}
+
+      - name: Create/update checklist as PR comment
+        uses: actions/github-script@v6
+        if: github.event_name == 'pull_request'
+        env:
+          REPORT: ${{ steps.slither_docu.outputs.stdout }}
+        with:
+          script: |
+            const script = require('.github/scripts/comment')
+            const header = '# Slither report'
+            const { REPORT } = process.env
+            await script({ github, context, header, body: REPORT })
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +'%Y%m%d%H%M%s')"
+
+      - name: Overwrite file
+        uses: "DamianReeves/write-file-action@master"
+        id: makeMD
+        with:
+          path: reports/Slither-${{ steps.date.outputs.date }}.md
+          write-mode: overwrite
+          contents: |
+            ${{ steps.slither_docu.outputs.stdout }}
+
+      - name: Commit & Push
+        uses: YgorSl/blk.push.action@v0.1.5
+        env:
+          BRANCH: 'brasil'
+        with:
+          github_token: ${{ secrets.SLITHER }}
+          branch: ${{ env.BRANCH }}
+          force: true
+          message: 'Slither-${{ steps.date.outputs.date }}'
+
+      - uses: baileyjm02/markdown-to-pdf@v1.2.0
+        with:
+          input_dir: reports
+          output_dir: pdfs
+          build_html: false
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: SlitherReports
+          path: pdfs
+
+      - name: Run Slither
+        uses: crytic/slither-action@v0.4.0
+        id: slither
+        env:
+          NODE_VERSION: '18'
+          SOLC_VERSION: '0.8.11'
+          TARGET: 'contracts/'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          solc-version: ${{ env.SOLC_VERSION }}
+          slither-args: --checklist --markdown-root ${{ github.server_url }}/${{ github.repository }}/blob/${{ github.sha }}/
+          fail-on: high
+          target: ${{ env.TARGET }}
