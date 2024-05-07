@@ -54,16 +54,6 @@ jobs:
           contents: |
             ${{ steps.slither_docu.outputs.stdout }}
 
-      - name: Commit & Push
-        uses: YgorSl/blk.push.action@v0.1.5
-        env:
-          BRANCH: 'brasil'
-        with:
-          github_token: ${{ secrets.SLITHER }}
-          branch: ${{ env.BRANCH }}
-          force: true
-          message: 'Slither-${{ steps.date.outputs.date }}'
-
       - uses: baileyjm02/markdown-to-pdf@v1.2.0
         with:
           input_dir: reports
